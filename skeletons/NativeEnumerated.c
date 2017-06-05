@@ -57,11 +57,18 @@ NativeEnumerated_encode_xer(asn_TYPE_descriptor_t *td, void *sptr,
 	el = INTEGER_map_value2enum(specs, *native);
 	if(el) {
 		size_t srcsize = el->enum_len + 5;
+#ifdef HAVE_ALLOCA_H
 		char *src = (char *)alloca(srcsize);
-
+#else
+      char *src = (char *)MALLOC(srcsize);
+#endif
 		er.encoded = snprintf(src, srcsize, "<%s/>", el->enum_name);
 		assert(er.encoded > 0 && (size_t)er.encoded < srcsize);
-		if(cb(src, er.encoded, app_key) < 0) ASN__ENCODE_FAILED;
+		int ret = cb(src, er.encoded, app_key);
+#ifndef HAVE_ALLOCA_H
+		FREEMEM(src);
+#endif
+		if(ret < 0) ASN__ENCODE_FAILED;
 		ASN__ENCODED_OK(er);
 	} else {
 		ASN_DEBUG("ASN.1 forbids dealing with "

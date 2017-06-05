@@ -462,14 +462,20 @@ asn_REAL2double(const REAL_t *st, double *dbl_value) {
 		if(st->buf[st->size] || memchr(st->buf, ',', st->size)) {
 			uint8_t *p, *end;
 			char *b;
-			if(st->size > 100) {
-				/* Avoid malicious stack overflow in alloca() */
+#ifdef HAVE_ALLOCA_H
+			if(st->size > 100)
+            /* Avoid malicious stack overflow in alloca() */
+#endif
+			{
 				buf = (char *)MALLOC(st->size);
 				if(!buf) return -1;
 				used_malloc = 1;
-			} else {
+			}
+#ifdef HAVE_ALLOCA_H
+			else {
 				buf = alloca(st->size);
 			}
+#endif
 			b = buf;
 			/* Copy without the first byte and with 0-termination */
 			for(p = st->buf + 1, end = st->buf + st->size;

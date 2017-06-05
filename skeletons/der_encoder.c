@@ -103,7 +103,11 @@ der_write_tags(asn_TYPE_descriptor_t *sd,
 		 */
 		int stag_offset;
 		ber_tlv_tag_t *tags_buf;
+#ifdef HAVE_ALLOCA_H
 		tags_buf = (ber_tlv_tag_t *)alloca((sd->tags_count + 1) * sizeof(ber_tlv_tag_t));
+#else
+      tags_buf = (ber_tlv_tag_t *)MALLOC((sd->tags_count + 1) * sizeof(ber_tlv_tag_t));
+#endif
 		if(!tags_buf) {	/* Can fail on !x86 */
 			errno = ENOMEM;
 			return -1;
@@ -117,6 +121,9 @@ der_write_tags(asn_TYPE_descriptor_t *sd,
 		for(i = 1; i < tags_count; i++)
 			tags_buf[i] = sd->tags[i + stag_offset];
 		tags = tags_buf;
+#ifndef HAVE_ALLOCA_H
+      FREEMEM(tags_buf);
+#endif
 	} else {
 		tags = sd->tags;
 		tags_count = sd->tags_count;
@@ -126,11 +133,16 @@ der_write_tags(asn_TYPE_descriptor_t *sd,
 	if(tags_count == 0)
 		return 0;
 
+#ifdef HAVE_ALLOCA_H
 	lens = (ssize_t *)alloca(tags_count * sizeof(lens[0]));
+#else
+   lens = (ssize_t *)MALLOC(tags_count * sizeof(lens[0]));
+#endif
 	if(!lens) {
 		errno = ENOMEM;
 		return -1;
 	}
+   ssize_t ret;
 
 	/*
 	 * Array of tags is initialized.
@@ -139,12 +151,18 @@ der_write_tags(asn_TYPE_descriptor_t *sd,
 	overall_length = struct_length;
 	for(i = tags_count - 1; i >= 0; --i) {
 		lens[i] = der_write_TL(tags[i], overall_length, 0, 0, 0);
-		if(lens[i] == -1) return -1;
+		if(lens[i] == -1) {
+		   ret = -1;
+		   goto exit;
+		}
 		overall_length += lens[i];
 		lens[i] = overall_length - lens[i];
 	}
 
-	if(!cb) return overall_length - struct_length;
+	if(!cb) {
+	   ret = overall_length - struct_length;
+	   goto exit;
+	}
 
 	ASN_DEBUG("Encoding %s TL sequence (%d elements)", sd->name,
                   tags_count);
@@ -160,10 +178,15 @@ der_write_tags(asn_TYPE_descriptor_t *sd,
 		_constr = (last_tag_form || i < (tags_count - 1));
 
 		len = der_write_TL(tags[i], lens[i], cb, app_key, _constr);
-		if(len == -1) return -1;
+		if(len == -1) {
+		   ret = -1;
+		   goto exit;
+		}
 	}
 
-	return overall_length - struct_length;
+	ret = overall_length - struct_length;
+exit:
+   return ret;
 }
 
 static ssize_t

@@ -126,12 +126,18 @@ INTEGER__dump(const asn_TYPE_descriptor_t *td, const INTEGER_t *st, asn_app_cons
 		const asn_INTEGER_enum_map_t *el;
 		size_t scrsize;
 		char *scr;
+      int used_malloc = 0;
 
 		el = (value >= 0 || !specs || !specs->field_unsigned)
 			? INTEGER_map_value2enum(specs, value) : 0;
 		if(el) {
 			scrsize = el->enum_len + 32;
+#ifdef HAVE_ALLOCA_H
 			scr = (char *)alloca(scrsize);
+#else
+         scr = (char *)MALLOC(scrsize);
+         used_malloc = 1;
+#endif
 			if(plainOrXER == 0)
 				ret = snprintf(scr, scrsize,
 					"%ld (%s)", value, el->enum_name);
@@ -151,7 +157,11 @@ INTEGER__dump(const asn_TYPE_descriptor_t *td, const INTEGER_t *st, asn_app_cons
 				?"%lu":"%ld", value);
 		}
 		assert(ret > 0 && (size_t)ret < scrsize);
-		return (cb(scr, ret, app_key) < 0) ? -1 : ret;
+		if (cb(scr, ret, app_key) < 0) ret = -1;
+#ifndef HAVE_ALLOCA_H
+		if (used_malloc) FREEMEM(scr);
+#endif
+		return ret;
 	} else if(plainOrXER && specs && specs->strict_enumeration) {
 		/*
 		 * Here and earlier, we cannot encode the ENUMERATED values
